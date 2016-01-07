@@ -34,13 +34,14 @@ type Server struct {
 	NOW         int64
 	giant       *sync.RWMutex
 	timeout     time.Duration
-	TransPro    int //specify for transmit protocol
+	TransPro    int    //specify for transmit protocol
+	Port        string //the serving port of resolver
 }
 
 const UDPcode = 1
 const TCPcode = 2
 
-func DoDNSquery(m dns.Msg, TransProString string, server []string, timeout time.Duration) (*dns.Msg, error) {
+func (this Server) DoDNSquery(m dns.Msg, TransProString string, server []string, timeout time.Duration) (*dns.Msg, error) {
 	dnsClient := new(dns.Client)
 	if dnsClient == nil {
 		return nil, errors.New("Cannot create DNS client")
@@ -55,9 +56,9 @@ func DoDNSquery(m dns.Msg, TransProString string, server []string, timeout time.
 	ServerStr := server[rand.Intn(len(server))]
 	ServerAddr := net.ParseIP(ServerStr)
 	if ServerAddr.To16() != nil {
-		ServerStr = "[" + ServerStr + "]:53"
+		ServerStr = "[" + ServerStr + "]:" + this.Port
 	} else if ServerAddr.To4() != nil {
-		ServerStr = ServerStr + ":53"
+		ServerStr = ServerStr + this.Port
 	} else {
 		return nil, errors.New("invalid Server Address")
 	}
@@ -130,7 +131,7 @@ func (this Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Server Error:No Recursive response", 500)
 			return
 		}*/
-	dnsResponse, err := DoDNSquery(dnsRequest, TransProString, this.SERVERS, this.timeout)
+	dnsResponse, err := this.DoDNSquery(dnsRequest, TransProString, this.SERVERS, this.timeout)
 	if err != nil {
 		_D("error in communicate with resolver, error message: %s", err)
 		http.Error(w, err.Error(), 500)
@@ -164,6 +165,7 @@ func main() {
 		ServeTLS      bool
 		tls_cert_path string
 		tls_key_path  string
+		port          string
 	)
 	flag.StringVar(&S_SERVERS, "proxy", "127.0.0.1", "we proxy requests to those servers") //Not sure use IP or URL, default server undefined
 	flag.IntVar(&timeout, "timeout", 5, "timeout")
@@ -173,13 +175,15 @@ func main() {
 	flag.BoolVar(&ServeTLS, "ServeTls", false, "whether serve TLS")
 	flag.StringVar(&tls_cert_path, "certificate_path", "", "the path of server's certicate for TLS")
 	flag.StringVar(&tls_key_path, "key_path", "", "the path of server's key for TLS")
+	flag.StringVar(&port, "p", "53", "the serving port of DNS server we forward to, defalut 53")
 	flag.Parse()
 	servers := strings.Split(S_SERVERS, ",")
 	proxyServer := Server{
 		SERVERS:     servers,
 		timeout:     time.Duration(timeout) * time.Second,
 		max_entries: max_entries,
-		ACCESS:      make([]*net.IPNet, 0)}
+		ACCESS:      make([]*net.IPNet, 0),
+		Port:        port}
 	for _, mask := range strings.Split(ACCESS, ",") {
 		_, cidr, err := net.ParseCIDR(mask)
 		if err != nil {

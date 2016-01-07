@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"flag"
+	"fmt"
 	"github.com/miekg/dns"
 	"io/ioutil"
 	"log"
@@ -19,10 +20,17 @@ import (
 
 // flag whether we want to emit debug output
 var DEBUG bool = false
+var LOG bool = false
 
 // called for debug output
 func _D(fmt string, v ...interface{}) {
 	if DEBUG {
+		log.Printf(fmt, v...)
+	}
+}
+
+func _LOG(fmt string, v ...interface{}) {
+	if LOG {
 		log.Printf(fmt, v...)
 	}
 }
@@ -100,6 +108,7 @@ func (this ClientProxy) getServerIP() error {
 					dns_servers = append(dns_servers, "["+dnsResponse.Answer[i].String()+"]")
 				}
 			} else {
+
 				return err
 			}
 		}
@@ -166,6 +175,7 @@ func (this ClientProxy) CreateHTTPClient() {
 }
 */
 func (this ClientProxy) ServeDNS(w dns.ResponseWriter, request *dns.Msg) {
+	_LOG("get %s query from %s", request.Question[0].Name, w.RemoteAddr())
 	request_bytes, err := request.Pack() //I am not sure it is better to pack directly or using a pointer
 	if err != nil {
 		SRVFAIL(w, request)
@@ -308,6 +318,7 @@ const UDPcode = 1
 const TCPcode = 2
 
 func main() {
+	fmt.Printf("Starting ClientProxy\n")
 	var (
 		S_SERVERS       string
 		S_LISTEN        string
@@ -319,6 +330,7 @@ func main() {
 		start_TLS       bool
 		TLS_Path        string
 	)
+	flag.BoolVar(&LOG, "log", false, "whether print all query")
 	flag.StringVar(&S_SERVERS, "proxy", "24.104.150.237", "we proxy requests to those servers,input like fci.biilab.cn") //Not sure use IP or URL, default server undefined
 	flag.StringVar(&S_LISTEN, "listen", "[::]:53", "listen on (both tcp and udp)")
 	flag.StringVar(&S_ACCESS, "access", "127.0.0.0/8,10.0.0.0/8", "allow those networks, use 0.0.0.0/0 to allow everything")
@@ -378,7 +390,7 @@ func main() {
 		return
 	}
 	for _, addr := range strings.Split(S_LISTEN, ",") {
-		_D("listening @ %s\n", addr)
+		fmt.Printf("listening @ %s\n", addr)
 		go func() {
 			if err := dns.ListenAndServe(addr, "udp", UDPproxyer); err != nil {
 				log.Fatal(err)
@@ -391,6 +403,7 @@ func main() {
 			}
 		}()
 	}
+	fmt.Printf("Start to work\n")
 	for {
 		UDPproxyer.NOW = time.Now().UTC().Unix()
 		time.Sleep(time.Duration(1) * time.Second)
