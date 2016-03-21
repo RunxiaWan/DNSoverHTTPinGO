@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
+	//"dns-master"
 	"errors"
 	"flag"
 	"fmt"
@@ -222,7 +223,10 @@ func (this ClientProxy) ServeDNS(w dns.ResponseWriter, request *dns.Msg) {
 	}
 	if this.start_TLS == false {
 		//HTTP version
-		this.client = &http.Client{}
+		tr := &http.Transport{
+			DisableKeepAlives: true,
+			TLSNextProto:      nil}
+		this.client = &http.Client{Transport: tr}
 	} else {
 		//HTTPS version disabled certificate verification
 		if this.TLS_Path == "" {

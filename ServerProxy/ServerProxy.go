@@ -5,6 +5,7 @@ import (
 	//	"bytes"
 	"flag"
 	"github.com/miekg/dns"
+	//"dns-master"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -166,6 +167,7 @@ func main() {
 		tls_cert_path string
 		tls_key_path  string
 		port          string
+		S_Listening   string
 	)
 	flag.StringVar(&S_SERVERS, "proxy", "127.0.0.1", "we proxy requests to those servers") //Not sure use IP or URL, default server undefined
 	flag.IntVar(&timeout, "timeout", 5, "timeout")
@@ -176,6 +178,7 @@ func main() {
 	flag.StringVar(&tls_cert_path, "certificate_path", "", "the path of server's certicate for TLS")
 	flag.StringVar(&tls_key_path, "key_path", "", "the path of server's key for TLS")
 	flag.StringVar(&port, "p", "53", "the serving port of DNS server we forward to, defalut 53")
+	flag.StringVar(&S_Listening, "listen", "", "the address the serverProxy is listening, split with comma")
 	flag.Parse()
 	servers := strings.Split(S_SERVERS, ",")
 	proxyServer := Server{
@@ -193,18 +196,23 @@ func main() {
 		proxyServer.ACCESS = append(proxyServer.ACCESS, cidr)
 	}
 	_D("start server HTTP")
-	err := http.ListenAndServe(":80", proxyServer)
-	if err != nil {
-		log.Fatal("ListenAndServe:", err)
-		return
-	}
-	if ServeTLS {
-		err := http.ListenAndServeTLS(":443", tls_cert_path, tls_key_path, proxyServer)
+	for _, ipaddress := range strings.Split(S_Listening, ",") {
+		err := http.ListenAndServe(ipaddress+":80", proxyServer)
 		if err != nil {
 			log.Fatal("ListenAndServe:", err)
 			return
 		}
+		if ServeTLS {
+			_D("startTLS")
+			err := http.ListenAndServeTLS(ipaddress+":443", tls_cert_path, tls_key_path, proxyServer)
+			_D("ListenAndServe:", err)
+			if err != nil {
+				log.Fatal("ListenAndServe:", err)
+				return
+			}
+		}
 	}
+
 	for {
 		proxyServer.NOW = time.Now().UTC().Unix()
 		time.Sleep(time.Duration(1) * time.Second)
